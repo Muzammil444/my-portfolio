@@ -277,7 +277,7 @@ if page == "Home":
     col1, col2 = st.columns([1, 2])
     
     with col1:
-        st.image("https://placehold.co/250x250/4CAF50/fff?text=Your+Photo",
+        st.image("Images/Muzammil.jpg",
                   caption="Professional Photo", 
                   use_container_width=True
                  )
@@ -604,4 +604,5 @@ elif page == "Contact":
 st.markdown('<div class="footer">', unsafe_allow_html=True)
 st.write(f"© {datetime.now().year} Muhammad Muzammil | Data Scientist Portfolio")
 st.write("Built with Streamlit")
+
 st.markdown('</div>', unsafe_allow_html=True)
