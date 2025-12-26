@@ -277,8 +277,7 @@ if page == "Home":
     col1, col2 = st.columns([1, 2])
     
     with col1:
-        st.image("Images/Muzammil.jpg",
-                  caption="Professional Photo", 
+        st.image("Images/Muzammil.jpg", 
                   use_container_width=True
                  )
     
@@ -606,3 +605,4 @@ st.write(f"© {datetime.now().year} Muhammad Muzammil | Data Scientist Portfolio
 st.write("Built with Streamlit")
 
 st.markdown('</div>', unsafe_allow_html=True)
+
