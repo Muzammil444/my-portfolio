@@ -19,7 +19,7 @@ PROFILE = {
     "tagline": "Turning Entropy into ROI.",
     # UPDATE THIS PATH: Use forward slashes (/) even on Windows. 
     # Example: "C:/Users/Muzammil/Downloads/profile.jpg" or "./assets/me.png"
-    "image": "D:\Muzammil\PROJECT\Portfolio\muzamil_shahid1.jpg", 
+    "image": "Images\Muzammil.jpg", 
     "about": "I don't just train models; I deploy scalable intelligence. Specializing in high-performance predictive engines and explainable AI for FinTech and Healthcare sectors.",
     "socials": {
         "LinkedIn": "https://linkedin.com",
@@ -413,3 +413,4 @@ if st.session_state.view == 'portfolio':
 
 elif st.session_state.view == 'detail':
     draw_detail_view()
+
