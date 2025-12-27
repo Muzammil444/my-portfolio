@@ -1,608 +1,415 @@
 import streamlit as st
-import pandas as pd
+import plotly.graph_objects as go
 from datetime import datetime
+import base64
+import os
 
-# Initialize session state for navigation and theming
-if 'selected_project' not in st.session_state:
-    st.session_state.selected_project = None
-if 'theme' not in st.session_state:
-    # Default to 'light' mode
-    st.session_state.theme = 'light' 
-
-# --- Theme Toggle Function ---
-def toggle_theme():
-    """Switches the theme between light and dark."""
-    # Modifying session state is enough to trigger a rerun automatically
-    st.session_state.theme = 'dark' if st.session_state.theme == 'light' else 'light'
-
-# --- Helper Function for Project Detail View ---
-
-def render_project_detail(project):
-    """Renders the detailed view of a selected project."""
-    
-    if st.button("⬅ Back to Projects List", key="back_btn_top"):
-        st.session_state.selected_project = None
-
-    st.markdown(f'<h1 style="color: var(--primary-color); font-size: 2rem; margin-top: 1rem;">{project["title"]} - Deep Dive</h1>', unsafe_allow_html=True)
-    st.markdown("<hr style='border-top: 1px solid var(--text-color-faded);'>", unsafe_allow_html=True)
-    
-    st.subheader("Project Summary")
-    st.info(project["description"])
-    
-    st.subheader("Key Performance Metrics")
-
-    col_acc, col_roi, col_cred = st.columns(3)
-
-    with col_acc:
-        st.metric(label="Primary Metric", value=project.get("accuracy", "N/A"), delta="High Confidence")
-    with col_roi:
-        st.metric(label="Business Impact", value=project.get("roi", "N/A"), delta="+20%", delta_color="normal")
-    with col_cred:
-        st.metric(label="Credibility Score", value=f"{project.get('credibility_score', 'N/A')}/10", delta="Audit Ready")
-
-    st.markdown("<hr style='border-top: 1px solid var(--text-color-faded);'>", unsafe_allow_html=True)
-
-    st.subheader("Key Technologies & Stack")
-    st.code(', '.join(project['technologies']), language='text')
-
-    st.subheader("Analysis & Outcome")
-    st.markdown(f"""
-    This was a full-cycle project focusing on **{project['category']}**. 
-    
-    The implementation involved advanced data preprocessing, model selection (like XGboost or deep neural network ensembles), and **Explainable AI (XAI)** techniques like SHAP to ensure the decisions are transparent and trustworthy.
-    
-    #### Detailed Business Impact:
-    * **Model Performance:** Achieved a definitive **{project.get('accuracy', 'AUPRC of 0.92')}** (as shown above) in a complex dataset.
-    * **Budget/Resource Estimate:** Estimated cost of \$5,000 for cloud compute and development time.
-    * **Impact Realized:** The project is currently yielding an estimated **{project.get('roi', '$100,000 annually')}** in savings/optimization, leading to high customer satisfaction and compliance.
-    """)
-
-    st.subheader("Visualizations & Screenshots")
-    st.write("Below are key visualizations and snapshots from the project and dashboard. **(Remember to update these placeholder image URLs with your actual image paths!)**")
-    
-    placeholder_base = "https://placehold.co/800x400/2ecc71/fff?text="
-    
-    if "Loan Approval" in project['title']:
-        # Corresponds to screenshots 202733, 202946/202843, and output.png
-        st.image(placeholder_base + "App+Screenshot+1%3A+Input+Form+and+Sliders", 
-                  caption="Screenshot 1: Applicant Input Form and Data Sliders", use_container_width=True)
-        st.image(placeholder_base + "App+Screenshot+2%3A+Decision+with+XAI+Reasons", 
-                  caption="Screenshot 2: Approved/Rejected Decision and Human-Readable XAI Reasons", use_container_width=True)
-        st.image(placeholder_base + "EDA+Boxplots%3A+Feature+Distribution+vs+Default", 
-                  caption="Screenshot 3: Exploratory Data Analysis (EDA) Boxplots", use_container_width=True)
-        
-    elif "Symptom Checker" in project['title']:
-        # Corresponds to screenshots 203807 and 203930
-        st.image(placeholder_base + "App+Screenshot+1%3A+Symptom+Input+Interface", 
-                  caption="Screenshot 1: Symptom Input Interface (Initial State)", use_container_width=True)
-        st.image(placeholder_base + "App+Screenshot+2%3A+Diagnosis%2C+Confidence%2C+and+XAI+Symptoms", 
-                  caption="Screenshot 2: Predicted Condition, Confidence Score, and Key Influential Symptoms", use_container_width=True)
-    else:
-        # Default placeholders for other projects
-        st.image(placeholder_base + f"{project['title']}+:+Feature+Importance", 
-              caption="Screenshot A: Feature Importance Analysis", use_container_width=True)
-        st.image(placeholder_base + f"{project['title']}+:+Model+Evaluation+Dashboard", 
-                  caption="Screenshot B: Live Model Performance Dashboard", use_container_width=True)
-
-
-    st.markdown("<hr style='border-top: 1px solid var(--text-color-faded);'>", unsafe_allow_html=True)
-
-    st.subheader("Source & Demo")
-    col_git, col_demo = st.columns(2) 
-    with col_git:
-        st.markdown(f"**🐙 [GitHub Repository]({project['github']})**", unsafe_allow_html=True)
-    with col_demo:
-        st.markdown(f"**🚀 [Live Demo / Application Link]({project['demo']})**", unsafe_allow_html=True)
-
-    st.markdown("<hr style='border-top: 1px solid var(--text-color-faded);'>", unsafe_allow_html=True)
-    
-    if st.button("Back to Projects List", key="back_btn_bottom"):
-        st.session_state.selected_project = None
-
-
-# --- Main Application Code ---
-
-# Set page configuration
+# --- CONFIGURATION & ASSETS ---
 st.set_page_config(
-    page_title="Muhammad Muzammil | Data Scientist Portfolio",
-    page_icon="📊",
-    layout="wide", 
-    initial_sidebar_state="expanded"
+    page_title="Muzammil | Data Science",
+    page_icon="⚡",
+    layout="wide",
+    initial_sidebar_state="collapsed" # Collapsed for a cleaner initial look
 )
 
-# Define CSS Variables based on the current theme
-if st.session_state.theme == 'light':
-    # Light Mode Colors
-    bg_main = '#ffffff'
-    bg_secondary = '#f0f2f6'
-    text_color = '#262730'
-    text_color_faded = '#6c757d'
-    primary_color = '#4CAF50'
-    mode_icon = '🌙'
-    mode_text = 'Dark Mode'
-    header_bg = '#e0e2e6' # Slightly different shade for header/sidebar
-else:
-    # Dark Mode Colors
-    bg_main = '#0e1117'
-    bg_secondary = '#262730'
-    text_color = '#fafafa'
-    text_color_faded = '#a0a0a0'
-    primary_color = '#4CAF50' # Keeping primary green constant for recognition
-    mode_icon = '☀️'
-    mode_text = 'Light Mode'
-    header_bg = '#1a1d23' # Slightly different shade for header/sidebar
+# --- DATA: STRUCTURED & MINIMALIST ---
+PROFILE = {
+    "name": "Muzammil",
+    "title": "Data Scientist & ML Engineer",
+    "tagline": "Turning Entropy into ROI.",
+    # UPDATE THIS PATH: Use forward slashes (/) even on Windows. 
+    # Example: "C:/Users/Muzammil/Downloads/profile.jpg" or "./assets/me.png"
+    "image": "D:\Muzammil\PROJECT\Portfolio\muzamil_shahid1.jpg", 
+    "about": "I don't just train models; I deploy scalable intelligence. Specializing in high-performance predictive engines and explainable AI for FinTech and Healthcare sectors.",
+    "socials": {
+        "LinkedIn": "https://linkedin.com",
+        "GitHub": "https://github.com",
+        "Email": "mailto:email@example.com"
+    }
+}
 
+PROJECTS = [
+    {
+        "id": 1,
+        "title": "XAI Loan Approval",
+        "client": "FinTech Corp",
+        "stack": ["XGBoost", "SHAP", "Docker"],
+        "metric": "15% ↓ Default Rate",
+        "desc": "Black-box credit scoring is a compliance nightmare. I built a transparent boosting model integrated with SHAP values, allowing loan officers to explain rejections in plain English while maintaining 0.95 AUC.",
+        "type": "Regression / XAI"
+    },
+    {
+        "id": 2,
+        "title": "Medi-NLP Triage",
+        "client": "HealthPlus",
+        "stack": ["Transformers", "FastAPI"],
+        "metric": "200ms Inference",
+        "desc": "Replaced manual triage with a BERT-based symptom classifier. Handles 50k+ daily queries, routing patients to specialists with 92% Top-3 accuracy.",
+        "type": "NLP / Deploy"
+    },
+    {
+        "id": 3,
+        "title": "Inventory Prophet",
+        "client": "Retail Giant",
+        "stack": ["Prophet", "Snowflake"],
+        "metric": "$95k/yr Saved",
+        "desc": "Hybrid LSTM-Prophet pipeline detecting seasonal anomalies. Directly integrated into Snowflake warehouses for real-time dashboarding.",
+        "type": "Time-Series"
+    },
+    {
+        "id": 4,
+        "title": "VisionQC Edge",
+        "client": "AutoMfgr",
+        "stack": ["OpenCV", "TensorRT"],
+        "metric": "99.1% Accuracy",
+        "desc": "Deployed quantized CNNs to Jetson Nano devices for real-time assembly line defect detection. Reduced manual QA load by 80%.",
+        "type": "Computer Vision"
+    }
+]
 
-# Custom CSS for styling and dynamic theme application
-st.markdown(f"""
+EXPERIENCE = [
+    {"role": "Data Science Freelancer", "company": "Global Clients", "year": "2024 - Present", "impact": "Delivered 15+ End-to-End ML pipelines."},
+    {"role": "ML Researcher", "company": "University of Central Punjab", "year": "2023 - 2024", "impact": "Published paper on transformer efficiency."},
+]
+
+# --- UTILITY: IMAGE LOADER ---
+def get_profile_image(path):
+    """
+    Handles both web URLs and local file paths for the image.
+    If it's a local file, it converts it to base64 so HTML can render it.
+    """
+    if path.startswith(("http://", "https://")):
+        return path
+    
+    if os.path.exists(path):
+        try:
+            with open(path, "rb") as file:
+                data = file.read()
+                encoded = base64.b64encode(data).decode()
+                # Guess mime type based on extension
+                ext = path.split('.')[-1].lower()
+                mime_type = "image/png" if ext == "png" else "image/jpeg"
+                return f"data:{mime_type};base64,{encoded}"
+        except Exception as e:
+            st.error(f"Error loading image: {e}")
+            return "https://placehold.co/400x400/1f2833/66fcf1?text=Error"
+            
+    return path # Return path as is if it doesn't exist (browser will show broken icon)
+
+# --- CUSTOM CSS (THE "MILLION DOLLAR" POLISH) ---
+st.markdown("""
 <style>
-    /* Inject CSS variables for easy theme switching */
-    :root {{
-        --main-bg-color: {bg_main};
-        --secondary-bg-color: {bg_secondary};
-        --text-color: {text_color};
-        --text-color-faded: {text_color_faded};
-        --primary-color: {primary_color};
-        --header-bg-color: {header_bg};
-    }}
+    /* FONTS */
+    @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;500;700&family=Inter:wght@300;400;600&display=swap');
 
-    /* Global Streamlit overrides using injected variables */
-    .stApp {{
-        background-color: var(--main-bg-color);
-        color: var(--text-color);
-    }}
+    /* GLOBAL VARIABLES */
+    :root {
+        --bg: #0b0c10;
+        --card-bg: #1f2833;
+        --accent: #66fcf1;
+        --text: #c5c6c7;
+        --text-highlight: #ffffff;
+    }
+
+    /* RESET & BASICS */
+    html, body, [class*="css"] {
+        font-family: 'Inter', sans-serif;
+        color: var(--text);
+        background-color: var(--bg);
+    }
     
-    /* CRITICAL FIX: Target the Header Bar and Main Content Shell */
-    header,
-    .st-emotion-cache-1avcm0n {{ /* Target for the main content wrapper (may vary by Streamlit version) */
-        background-color: var(--main-bg-color) !important;
-    }}
+    h1, h2, h3 {
+        font-family: 'Space Grotesk', sans-serif;
+        color: var(--text-highlight);
+        letter-spacing: -1px;
+    }
+
+    /* REMOVE STREAMLIT CHROME */
+    #MainMenu, footer, header {visibility: hidden;}
     
-    /* Target the persistent header bar (often an H-tag or specific Streamlit element) */
-    header[data-testid="stHeader"] {{
-        background-color: var(--header-bg-color) !important;
-        border-bottom: 1px solid var(--text-color-faded);
-    }}
-    
-    .stSidebar {{
-        background-color: var(--secondary-bg-color);
-    }}
-    
-    /* Ensure all text uses the correct color */
-    .stText, h1, h2, h3, h4, h5, h6, label, p {{
-        color: var(--text-color) !important;
-    }}
-    
-    /* Overrides for specific Streamlit components */
-    .stCodeBlock, .stTextInput, .stTextArea, .stSelectbox {{
-        background-color: var(--secondary-bg-color) !important;
-        border-color: var(--text-color-faded);
-    }}
-    
-    /* Global Text and Header Styles */
-    .main-header {{
-        font-size: 2.5rem;
-        font-weight: bold;
-        text-align: center;
-        margin-bottom: 2rem;
-    }}
-    .section-header {{
-        font-size: 1.8rem;
-        font-weight: bold;
-        margin-top: 2rem;
-        margin-bottom: 1rem;
-        color: var(--primary-color) !important;
-    }}
-    
-    /* Project Card Style */
-    .project-card {{
-        padding: 1.5rem;
-        border-radius: 10px;
-        margin-bottom: 1rem;
-        border-left: 4px solid var(--primary-color);
-        background-color: var(--secondary-bg-color);
-        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-    }}
-    
-    /* ENHANCED BUTTON STYLING (FOR ALL Streamlit Buttons) */
-    .stButton>button {{
-        background-color: var(--primary-color); 
-        color: white !important; /* CRITICAL FIX: Added !important */
-        border-radius: 12px; 
+    /* CUSTOM SCROLLBAR */
+    ::-webkit-scrollbar {width: 8px;}
+    ::-webkit-scrollbar-track {background: var(--bg);}
+    ::-webkit-scrollbar-thumb {background: #45a29e; border-radius: 4px;}
+
+    /* HERO SECTION STYLING */
+    .hero-container {
+        padding: 4rem 0 2rem 0;
+        animation: fadeIn 1s ease-in;
+    }
+    .big-title {
+        font-size: 4.5rem;
         font-weight: 700;
-        padding: 0.75rem 1.5rem; 
-        border: none;
-        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2); 
-        transition: all 0.2s ease-in-out; 
-        text-transform: uppercase;
-        letter-spacing: 0.5px;
-        margin-top: 0.5rem; 
-        width: 100%; 
-    }}
+        background: linear-gradient(90deg, #ffffff, #66fcf1);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        line-height: 1.1;
+        margin-bottom: 0.5rem;
+    }
+    .subtitle {
+        font-size: 1.5rem;
+        color: #45a29e;
+        margin-bottom: 2rem;
+    }
 
-    @media (min-width: 600px) {{
-        .stButton>button {{
-            width: auto; 
-            min-width: 250px; 
-        }}
-    }}
-
-    .stButton>button:hover {{
-        background-color: #45a049; 
-        box-shadow: 0 6px 12px rgba(0, 0, 0, 0.3);
-        transform: translateY(-2px); 
-    }}
+    /* DYNAMIC PROFILE IMAGE */
+    .profile-img-container {
+        display: flex;
+        justify-content: center;
+        margin-bottom: 20px;
+    }
+    .profile-img {
+        width: 220px;
+        height: 220px;
+        object-fit: cover;
+        border: 2px solid var(--accent);
+        box-shadow: 0 0 30px rgba(102, 252, 241, 0.3);
+        /* The "Morphing" Shape */
+        border-radius: 60% 40% 30% 70% / 60% 30% 70% 40%;
+        animation: morph 8s ease-in-out infinite;
+        transition: all 0.5s ease-in-out;
+    }
+    .profile-img:hover {
+        transform: scale(1.05);
+        box-shadow: 0 0 50px rgba(102, 252, 241, 0.6);
+    }
     
-    /* Other sections */
-    .experience-item {{
-        margin-bottom: 1.5rem;
-        padding: 1rem;
-        border-left: 3px solid var(--primary-color);
-        background-color: var(--main-bg-color); /* Use main background or secondary */
-    }}
-    .contact-form {{
-        padding: 2rem;
-        border-radius: 10px;
-        border: 1px solid var(--text-color-faded);
-        background-color: var(--secondary-bg-color);
-    }}
-    .footer {{
-        text-align: center;
-        padding: 2rem;
-        margin-top: 3rem;
-        color: var(--text-color-faded);
-        border-top: 1px solid var(--text-color-faded);
-    }}
+    @keyframes morph {
+        0% {border-radius: 60% 40% 30% 70% / 60% 30% 70% 40%;}
+        50% {border-radius: 30% 60% 70% 40% / 50% 60% 30% 60%;}
+        100% {border-radius: 60% 40% 30% 70% / 60% 30% 70% 40%;}
+    }
+
+    /* BENTO BOX CARD DESIGN */
+    div[data-testid="stVerticalBlock"] > div > div[data-testid="stVerticalBlock"] {
+        gap: 1rem;
+    }
+    
+    .project-card {
+        background: rgba(31, 40, 51, 0.6);
+        border: 1px solid rgba(102, 252, 241, 0.1);
+        border-radius: 12px;
+        padding: 20px;
+        transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+        height: 100%;
+        backdrop-filter: blur(10px);
+    }
+    .project-card:hover {
+        transform: translateY(-5px);
+        border-color: var(--accent);
+        box-shadow: 0 10px 30px -10px rgba(102, 252, 241, 0.2);
+    }
+    
+    /* METRIC HIGHLIGHT */
+    .metric-pill {
+        display: inline-block;
+        background: rgba(102, 252, 241, 0.1);
+        color: var(--accent);
+        padding: 4px 12px;
+        border-radius: 20px;
+        font-size: 0.8rem;
+        font-weight: 600;
+        margin-bottom: 10px;
+        border: 1px solid rgba(102, 252, 241, 0.2);
+    }
+
+    /* BUTTONS OVERRIDE */
+    .stButton > button {
+        background: transparent;
+        border: 1px solid var(--accent);
+        color: var(--accent);
+        border-radius: 6px;
+        font-weight: 600;
+        transition: 0.3s;
+        width: 100%;
+    }
+    .stButton > button:hover {
+        background: var(--accent);
+        color: #0b0c10;
+        box-shadow: 0 0 15px rgba(102, 252, 241, 0.5);
+    }
+
+    /* ANIMATIONS */
+    @keyframes fadeIn {
+        from {opacity: 0; transform: translateY(20px);}
+        to {opacity: 1; transform: translateY(0);}
+    }
+    
+    /* MOBILE TWEAKS */
+    @media (max-width: 768px) {
+        .big-title { font-size: 2.5rem; }
+    }
 </style>
 """, unsafe_allow_html=True)
 
-# --- Sidebar Content ---
-st.sidebar.title("Portfolio Navigation")
+# --- SESSION STATE MANAGEMENT ---
+if 'view' not in st.session_state:
+    st.session_state.view = 'portfolio'
+if 'selected_id' not in st.session_state:
+    st.session_state.selected_id = None
 
-# Theme Toggle Button
-st.sidebar.button(
-    f"{mode_icon} {mode_text}", 
-    on_click=toggle_theme, 
-    use_container_width=True
-)
+def view_project(p_id):
+    st.session_state.view = 'detail'
+    st.session_state.selected_id = p_id
 
-page = st.sidebar.radio("Go to", ["Home", "Skills & Expertise", "Projects", "Experience", "Contact"])
+def go_home():
+    st.session_state.view = 'portfolio'
+    st.session_state.selected_id = None
 
-# --- Content Sections ---
+# --- UI COMPONENTS ---
 
-# Home/About Me Section
-if page == "Home":
-    st.markdown('<div class="main-header">Welcome to My Data Science Portfolio</div>', unsafe_allow_html=True)
-    
-    col1, col2 = st.columns([1, 2])
-    
+def draw_hero():
+    col1, col2 = st.columns([1.5, 1], gap="large")
     with col1:
-        st.image("Images/Muzammil.jpg", 
-                  use_container_width=True
-                 )
-    
+        st.markdown('<div class="hero-container">', unsafe_allow_html=True)
+        st.markdown(f'<div class="big-title">{PROFILE["name"]}</div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="subtitle">{PROFILE["title"]}</div>', unsafe_allow_html=True)
+        st.write(PROFILE['about'])
+        
+        # Social Row
+        st.markdown("<br>", unsafe_allow_html=True)
+        s_cols = st.columns(len(PROFILE['socials']) + 2)
+        for i, (platform, link) in enumerate(PROFILE['socials'].items()):
+            with s_cols[i]:
+                st.markdown(f"<a href='{link}' style='color:#66fcf1; text-decoration:none; font-weight:600;'>{platform} ↗</a>", unsafe_allow_html=True)
+        st.markdown('</div>', unsafe_allow_html=True)
+
     with col2:
-        st.header("Muhammad Muzammil")
-        st.subheader("AI/ML Solutions for FinTech & Business Automation")
-        
-        st.markdown("""
-        **About Me:**
-        
-        Passionate data scientist with expertise in machine learning, statistical analysis, and data visualization. 
-        I transform complex data into actionable insights and build predictive models that drive business decisions.
-        
-        **Core Expertise:**
-        - Explainable AI (XAI) and Model Interpretability
-        - Financial Risk Modeling and Scoring
-        - Natural Language Processing (NLP) for Diagnostics
-        - Python, XGboost, SHAP, Streamlit, Pandas, Scikit-learn
-        """)
+        # 1. DYNAMIC PROFILE IMAGE (Safe Loading)
+        image_src = get_profile_image(PROFILE['image'])
+        st.markdown(f"""
+        <div class="profile-img-container">
+            <img src="{image_src}" class="profile-img">
+        </div>
+        """, unsafe_allow_html=True)
 
-        st.markdown("<hr style='border-top: 1px solid var(--text-color-faded);'>", unsafe_allow_html=True)
-        st.subheader("Key Project Snapshots")
+        # 2. DATA SCIENTIST "SIGNATURE" - THE RADAR CHART
+        categories = ['Modelling', 'Data Eng', 'Visualization', 'Business Strategy', 'Math/Stats']
+        r = [5, 4, 4, 3, 5]
         
-        placeholder_base = "https://placehold.co/600x300/2ecc71/fff?text=Project+Snapshot+" 
-        
-        st.image(placeholder_base + "XAI+Loan+Approval+Demo", caption="Explainable AI Loan Approval System", use_container_width=True)
-        st.image(placeholder_base + "AI+Symptom+Checker+NLP", caption="AI Medical Symptom Checker (NLP Diagnosis)", use_container_width=True)
-        st.image(placeholder_base + "Sales+Forecasting+Dashboard", caption="Sales Forecasting Model Dashboard", use_container_width=True)
-        st.image(placeholder_base + "Image+Classification+System", caption="Image Classification System Overview", use_container_width=True)
-        
-        st.markdown("<hr style='border-top: 1px solid var(--text-color-faded);'>", unsafe_allow_html=True)
-        
-        st.info("👉 **Explore the full case studies, technical details, and performance metrics for all projects in the 'Projects' section!**")
-        
-        st.markdown("<hr style='border-top: 1px solid var(--text-color-faded);'>", unsafe_allow_html=True)
-        
-        st.markdown("**Connect with me:**")
-        col_contact1, col_contact2, col_contact3 = st.columns(3)
-        with col_contact1:
-            st.markdown("🔗 [LinkedIn](https://linkedin.com)")
-        with col_contact2:
-            st.markdown("🐙 [GitHub](https://github.com)")
-        with col_contact3:
-            st.markdown("📧 [Email](mailto:your.email@example.com)")
-
-# Skills & Expertise Section
-elif page == "Skills & Expertise":
-    st.markdown('<div class="section-header">Skills & Expertise</div>', unsafe_allow_html=True)
-    
-    st.markdown('<div class="skill-category">', unsafe_allow_html=True)
-    st.markdown('<div class="skill-header">Programming Languages</div>', unsafe_allow_html=True)
-    
-    col1, col2 = st.columns(2) 
-    with col1:
-        st.write("**Python**")
-        st.progress(85)
-    with col2:
-        st.write("**C++**")
-        st.progress(90)
-    st.markdown('</div>', unsafe_allow_html=True)
-    
-    st.markdown('<div class="skill-category">', unsafe_allow_html=True)
-    st.markdown('<div class="skill-header">Machine Learning & AI</div>', unsafe_allow_html=True)
-    
-    col1, col2 = st.columns(2) 
-    with col1:
-        st.write("**Scikit-learn**")
-        st.progress(90)
-        st.write("**TensorFlow/Keras**")
-        st.progress(80)
-        st.write("**PyTorch**")
-        st.progress(70)
-    with col2:
-        st.write("**XGBoost**")
-        st.progress(85)
-        st.write("**SHAP / XAI**")
-        st.progress(95) # High confidence on XAI based on project screenshots
-        st.write("**NLP / Transformers**")
-        st.progress(80)
-    st.markdown('</div>', unsafe_allow_html=True)
-
-    st.markdown('<div class="skill-category">', unsafe_allow_html=True)
-    st.markdown('<div class="skill-header">Statistical & Analytical Proficiency</div>', unsafe_allow_html=True)
-
-    col1, col2 = st.columns(2) 
-    with col1:
-        st.write("**A/B Testing & Causal Inference**")
-        st.progress(80)
-        st.write("**Bayesian Statistics**")
-        st.progress(65)
-    with col2:
-        st.write("**Hypothesis Testing**")
-        st.progress(90)
-        st.write("**Data Modeling (ERD)**")
-        st.progress(75)
-    st.markdown('</div>', unsafe_allow_html=True)
-    
-    st.markdown('<div class="skill-category">', unsafe_allow_html=True)
-    st.markdown('<div class="skill-header">Data Visualization</div>', unsafe_allow_html=True)
-    
-    col1, col2 = st.columns(2) 
-    with col1:
-        st.write("**Matplotlib**")
-        st.progress(90)
-        st.write("**Seaborn**")
-        st.progress(85)
-    with col2:
-        st.write("**Plotly**")
-        st.progress(80)
-        st.write("**Streamlit**")
-        st.progress(90)
-    st.markdown('</div>', unsafe_allow_html=True)
-    
-    st.markdown('<div class="skill-category">', unsafe_allow_html=True)
-    st.markdown('<div class="skill-header">Tools & Platforms</div>', unsafe_allow_html=True)
-    
-    col1, col2 = st.columns(2) 
-    with col1:
-        st.write("**Pandas / NumPy**")
-        st.progress(95)
-        st.write("**AWS**")
-        st.progress(75)
-    with col2:
-        st.write("**Docker**")
-        st.progress(65)
-        st.write("**Git**")
-        st.progress(85)
-    st.markdown('</div>', unsafe_allow_html=True)
-
-# Projects Section
-elif page == "Projects":
-
-    projects = [
-        {
-            "title": "Explainable AI (XAI) Loan Approval System",
-            "description": "Developed an Explainable AI (XAI) system for real-time loan approval/rejection. The tool uses a high-performance model (XGBoost) and SHAP values to provide human-readable reasons, risk estimation, and exportable reports.",
-            "technologies": ["Python", "XGboost", "SHAP", "Streamlit", "Scikit-learn", "Docker"],
-            "category": "FinTech / Explainable AI",
-            "github": "https://github.com/loan-approval-xai",
-            "demo": "https://demo.com/loan-xai",
-            "accuracy": "AUC 0.95", 
-            "roi": "15% Reduction in Default Rate", 
-            "credibility_score": 10 
-        },
-        {
-            "title": "AI Medical Symptom Checker (NLP Diagnosis)",
-            "description": "Created a Natural Language Processing (NLP) tool to predict the most likely medical condition from user-input symptoms in plain English. Includes confidence scores and influential symptom analysis based on model interpretation.",
-            "technologies": ["Python", "Transformers", "Streamlit", "NLP", "XAI", "HealthTech"],
-            "category": "HealthTech / NLP",
-            "github": "https://github.com/ai-symptom-checker",
-            "demo": "https://demo.com/symptom-checker",
-            "accuracy": "Top-3 Accuracy: 90%",
-            "roi": "Faster Preliminary Screening",
-            "credibility_score": 9
-        },
-        {
-            "title": "Retail Sales Forecasting Model",
-            "description": "Created a time series forecasting model using Prophet and TensorFlow to predict sales for retail business with high accuracy, optimizing inventory management and staffing.",
-            "technologies": ["Python", "Prophet", "TensorFlow", "SQL", "Plotly"],
-            "category": "Machine Learning",
-            "github": "https://github.com/sales-forecasting",
-            "demo": "https://demo.com/sales",
-            "accuracy": "90.0%",
-            "roi": "$95,000",
-            "credibility_score": 9
-        },
-        {
-            "title": "Image Classification System for Quality Control",
-            "description": "Built a deep learning model for classifying images to automate quality control in manufacturing, significantly reducing manual inspection time and error rates.",
-            "technologies": ["Python", "TensorFlow", "OpenCV", "Keras", "Azure"],
-            "category": "Computer Vision",
-            "github": "https://github.com/image-classifier",
-            "demo": "https://demo.com/image",
-            "accuracy": "94.8%",
-            "roi": "$75,000",
-            "credibility_score": 9
-        }
-    ]
-
-    if st.session_state.selected_project:
-        render_project_detail(st.session_state.selected_project)
-        
-    else:
-        st.markdown('<div class="section-header">Projects Showcase</div>', unsafe_allow_html=True)
-        
-        project_filter = st.selectbox(
-            "Filter by category:",
-            ["All", "FinTech / Explainable AI", "HealthTech / NLP", "Machine Learning", "Computer Vision"]
+        fig = go.Figure()
+        fig.add_trace(go.Scatterpolar(
+            r=r,
+            theta=categories,
+            fill='toself',
+            name='Skills',
+            line_color='#66fcf1',
+            fillcolor='rgba(102, 252, 241, 0.2)'
+        ))
+        fig.update_layout(
+            polar=dict(
+                radialaxis=dict(visible=True, range=[0, 5], showticklabels=False, linecolor='#333'),
+                angularaxis=dict(tickfont=dict(color='#c5c6c7', size=10)),
+                bgcolor='rgba(0,0,0,0)'
+            ),
+            paper_bgcolor='rgba(0,0,0,0)',
+            showlegend=False,
+            margin=dict(l=40, r=40, t=10, b=40), # Adjusted top margin since image is above
+            height=300 # Slightly shorter to fit image
         )
-        
-        if project_filter != "All":
-            filtered_projects = [p for p in projects if p["category"] == project_filter]
-        else:
-            filtered_projects = projects
-        
-        for project in filtered_projects:
-            with st.container():
+        st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
+
+def draw_project_grid():
+    st.markdown("### Select Work")
+    st.markdown("---")
+    
+    # Grid Logic (2 columns per row)
+    rows = [PROJECTS[i:i+2] for i in range(0, len(PROJECTS), 2)]
+    
+    for row in rows:
+        cols = st.columns(2)
+        for idx, proj in enumerate(row):
+            with cols[idx]:
+                # CSS Card Container
                 st.markdown(f"""
                 <div class="project-card">
-                    <h3>{project['title']} ({project['category']})</h3>
-                    <p>{project['description']}</p>
-                    <div style="margin-bottom: 0.5rem; font-size: 0.9rem;">
-                        <strong style="color: var(--text-color);">Technologies:</strong> {', '.join(project['technologies'])}
+                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                        <span class="metric-pill">{proj['metric']}</span>
+                        <span style="font-size:0.8rem; opacity:0.7;">{proj['type']}</span>
                     </div>
+                    <h3 style="margin-top:10px;">{proj['title']}</h3>
+                    <p style="font-size:0.9rem; color:#a0a0a0; margin-bottom:15px;">{proj['desc']}</p>
                 </div>
                 """, unsafe_allow_html=True)
                 
-                # Modifying session state is enough; Streamlit reruns automatically
-                if st.button(f"🔍 View Full Case Study", key=f"btn_view_details_{project['title']}"):
-                    st.session_state.selected_project = project
-                
-                st.markdown("<hr style='border-top: 1px solid var(--text-color-faded);'>", unsafe_allow_html=True)
+                # Invisible Interaction Layer
+                if st.button(f"View Case Study", key=f"btn_{proj['id']}"):
+                    view_project(proj['id'])
+                    st.rerun()
 
-
-# Experience Section
-elif page == "Experience":
-    st.markdown('<div class="section-header">Experience & Education</div>', unsafe_allow_html=True)
+def draw_detail_view():
+    proj = next(p for p in PROJECTS if p['id'] == st.session_state.selected_id)
     
-    st.subheader("Work Experience")
-    
-    experiences = [
-        {
-            "title": "Freelance Data Scientist",
-            "company": "Self-Employed",
-            "period": "2024 - Present",
-            "description": "Created 15+ machine learning solutions across finance, healthcare, and automation. Clients include startups and SMEs requiring predictive modeling, fraud detection, and document automation"
-        },
+    if st.button("← Back to Dashboard"):
+        go_home()
+        st.rerun()
         
-    ]
+    st.markdown("<br>", unsafe_allow_html=True)
     
-    for exp in experiences:
+    # Title Section
+    c1, c2 = st.columns([2, 1])
+    with c1:
+        st.markdown(f"<h1 style='font-size:3.5rem;'>{proj['title']}</h1>", unsafe_allow_html=True)
+        st.markdown(f"<span style='color:#66fcf1; font-size:1.2rem; font-family:Space Grotesk;'>{proj['client']}</span>", unsafe_allow_html=True)
+    with c2:
         st.markdown(f"""
-        <div class="experience-item">
-            <h4>{exp['title']} - {exp['company']}</h4>
-            <p><strong>{exp['period']}</strong></p>
-            <p>{exp['description']}</p>
+        <div style="text-align:right; border-left:2px solid #66fcf1; padding-left:20px;">
+            <div style="font-size:2.5rem; font-weight:bold; color:#fff;">{proj['metric'].split(' ')[0]}</div>
+            <div style="color:#aaa;">{ ' '.join(proj['metric'].split(' ')[1:]) }</div>
         </div>
         """, unsafe_allow_html=True)
+
+    st.markdown("---")
     
-    st.subheader("Education")
+    # Content Grid
+    col_desc, col_stack = st.columns([2, 1], gap="large")
     
-    education = [
-        {
-            "degree": "B.S. in Data Science",
-            "institution": "University Of Central Punjab",
-            "year": "2024 - 2028"
-        }
-    ]
-    
-    for edu in education:
-        st.markdown(f"""
-        <div class="experience-item">
-            <h4>{edu['degree']}</h4>
-            <p><strong>{edu['institution']}</strong> - {edu['year']}</p>
-        </div>
-        """, unsafe_allow_html=True)
-    
-    st.subheader("Certifications")
-    
-    certifications = [
-        {"name": "Python Ka Chilla 2023",
-         "issuer": "Codanics", 
-         "year": "2023"}
+    with col_desc:
+        st.markdown("### The Problem & Solution")
+        st.write(proj['desc'])
+        st.info("Additional technical documentation, architectural diagrams, and code snippets would be displayed here in a real deployment, demonstrating the depth of the engineering process.")
         
-    ]
-    
-    for cert in certifications:
-        st.markdown(f"""
-        <div class="experience-item">
-            <h5>{cert['name']}</h5>
-            <p><strong>{cert['issuer']}</strong> - {cert['year']}</p>
-        </div>
-        """, unsafe_allow_html=True)
-    
-    st.markdown("<hr style='border-top: 1px solid var(--text-color-faded);'>", unsafe_allow_html=True)
-    st.download_button(
-        label="📄 Download Resume",
-        data="Sample Resume Content", 
-        file_name="Your_Name_Resume.pdf",
-        mime="application/pdf",
-        use_container_width=True
-    )
+        # Mock Graph for Visual Interest
+        st.markdown("### Performance Analysis")
+        x = list(range(10))
+        y = [i**2 for i in x]
+        fig_mock = go.Figure(data=go.Scatter(x=x, y=y, line=dict(color='#66fcf1', width=3)))
+        fig_mock.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(31,40,51,0.5)', font=dict(color='#ccc'), height=250, margin=dict(l=0,r=0,t=0,b=0))
+        st.plotly_chart(fig_mock, use_container_width=True)
 
-# Contact Section
-elif page == "Contact":
-    st.markdown('<div class="section-header">Get In Touch</div>', unsafe_allow_html=True)
-    
-    st.markdown('<div class="contact-form">', unsafe_allow_html=True)
-    
-    with st.form("contact_form"):
-        name = st.text_input("Your Name")
-        email = st.text_input("Your Email")
-        message = st.text_area("Your Message", height=150)
-        
-        submitted = st.form_submit_button("Send Message", use_container_width=True) 
-        
-        if submitted:
-            if name and email and message:
-                print(f"New message from {name} ({email}): {message}")
-                st.success("Thank you for your message! I'll get back to you soon.")
-            else:
-                st.error("Please fill in all fields.")
-    
-    st.markdown('</div>', unsafe_allow_html=True)
-    
-    st.markdown("<hr style='border-top: 1px solid var(--text-color-faded);'>", unsafe_allow_html=True)
-    st.subheader("Alternative Contact Methods")
-    col1, col2, col3 = st.columns(3) 
-    
-    with col1:
-        st.markdown("**Email**")
-        st.write("your.email@example.com")
-    
-    with col2:
-        st.markdown("**LinkedIn**")
-        st.write("[Your LinkedIn Profile](https://linkedin.com)")
-    
-    with col3:
-        st.markdown("**GitHub**")
-        st.write("[Your GitHub Profile](https://github.com)")
+    with col_stack:
+        st.markdown("### Technology Stack")
+        for tool in proj['stack']:
+            st.markdown(f"""
+            <div style="background:rgba(255,255,255,0.05); padding:10px; margin-bottom:8px; border-radius:5px; border-left:3px solid #66fcf1;">
+                {tool}
+            </div>
+            """, unsafe_allow_html=True)
 
-# Footer
-st.markdown('<div class="footer">', unsafe_allow_html=True)
-st.write(f"© {datetime.now().year} Muhammad Muzammil | Data Scientist Portfolio")
-st.write("Built with Streamlit")
+def draw_timeline():
+    st.markdown("### Journey")
+    st.markdown("---")
+    for role in EXPERIENCE:
+        col_date, col_info = st.columns([1, 4])
+        with col_date:
+            st.markdown(f"<div style='color:#66fcf1; font-weight:bold; margin-top:5px;'>{role['year']}</div>", unsafe_allow_html=True)
+        with col_info:
+            st.markdown(f"<div style='font-size:1.1rem; font-weight:bold; color:#fff;'>{role['role']}</div>", unsafe_allow_html=True)
+            st.markdown(f"<div style='font-size:0.9rem; color:#aaa; margin-bottom:5px;'>{role['company']}</div>", unsafe_allow_html=True)
+            st.markdown(f"<div style='font-size:0.9rem; color:#c5c6c7; font-style:italic;'>{role['impact']}</div>", unsafe_allow_html=True)
+        st.markdown("<br>", unsafe_allow_html=True)
 
-st.markdown('</div>', unsafe_allow_html=True)
+# --- MAIN RENDER LOGIC ---
 
+if st.session_state.view == 'portfolio':
+    draw_hero()
+    st.markdown("<br><br>", unsafe_allow_html=True)
+    draw_project_grid()
+    st.markdown("<br><br>", unsafe_allow_html=True)
+    draw_timeline()
+    
+    # Footer
+    st.markdown("<br><hr><center style='color:#555; font-size:0.8rem;'>Designed by Artificial Intelligence for Human Impact.</center>", unsafe_allow_html=True)
+
+elif st.session_state.view == 'detail':
+    draw_detail_view()
