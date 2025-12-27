@@ -415,3 +415,4 @@ elif st.session_state.view == 'detail':
     draw_detail_view()
 
 
+
