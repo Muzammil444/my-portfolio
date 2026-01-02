@@ -128,6 +128,11 @@ h1, h2, h3 {
     box-shadow: 0 0 50px rgba(102, 252, 241, 0.6);
 }
 
+/* MOBILE-ONLY PROFILE IMAGE (appears before name on small screens) */
+.profile-img-mobile {
+    display: none;
+}
+
 @keyframes morph {
     0% {border-radius: 60% 40% 30% 70% / 60% 30% 70% 40%;}
     50% {border-radius: 30% 60% 70% 40% / 50% 60% 30% 60%;}
@@ -438,12 +443,32 @@ div[data-testid="stVerticalBlock"] > div > div[data-testid="stVerticalBlock"] {
         margin-bottom: 16px;
     }
     .profile-img { width: 180px; height: 180px; }
+
+    /* On mobile show mobile image inside hero and hide desktop column image */
+    .profile-img-mobile {
+        display: block !important;
+        width: 180px;
+        height: 180px;
+        object-fit: cover;
+        border: 2px solid var(--accent);
+        box-shadow: 0 0 30px rgba(102, 252, 241, 0.3);
+        border-radius: 60% 40% 30% 70% / 60% 30% 70% 40%;
+        margin: 0 auto 14px auto;
+    }
+
+    .profile-img-container { display: none !important; }
 }
 
 @media (max-width: 480px) {
     .big-title { font-size: 2rem; }
     .project-card { padding: 12px; }
     .profile-img { width: 150px; height: 150px; }
+
+    /* slightly smaller mobile-only image */
+    .profile-img-mobile {
+        width: 150px !important;
+        height: 150px !important;
+    }
 }
 
 /* TABLET OPTIMIZATIONS */
@@ -615,6 +640,11 @@ def draw_hero():
     col1, col2 = st.columns([1.5, 1], gap="large")
     with col1:
         st.markdown('<div class="hero-container">', unsafe_allow_html=True)
+
+        # Mobile-only profile image (hidden on desktop; shown on small screens)
+        image_src_mobile = load_image(PROFILE['image'])
+        st.markdown(f'<div style="text-align:center;"><img src="{image_src_mobile}" class="profile-img-mobile magnetic-element"></div>', unsafe_allow_html=True)
+
         st.markdown(f'<div class="big-title">{PROFILE["name"]}</div>', unsafe_allow_html=True)
         st.markdown(f'<div class="subtitle">{PROFILE["title"]}</div>', unsafe_allow_html=True)
 
@@ -814,6 +844,12 @@ def draw_project_grid():
 
 def draw_detail_view():
     proj = next(p for p in PROJECTS if p['id'] == st.session_state.selected_id)
+    # Ensure the page is scrolled to top when opening the detail view
+    try:
+        components.html("""<script>window.scrollTo({top:0,left:0,behavior:'auto'});</script>""", height=1)
+    except Exception:
+        # Fallback: no-op if components rendering fails in older Streamlit versions
+        pass
     
     # Back and Source Code Buttons
     c_btn1, c_btn2, c_spacer = st.columns([1, 1, 4])
@@ -868,12 +904,7 @@ def draw_detail_view():
             """
             st.html(tool_html)
         
-        st.markdown("<br>### Performance", unsafe_allow_html=True)
-        x = list(range(10))
-        y = [i**2 for i in x]
-        fig_mock = go.Figure(data=go.Scatter(x=x, y=y, line=dict(color='#66fcf1', width=3)))
-        fig_mock.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(31,40,51,0.5)', font=dict(color='#ccc'), height=200, margin=dict(l=0,r=0,t=0,b=0), xaxis=dict(showgrid=False), yaxis=dict(showgrid=False))
-        st.plotly_chart(fig_mock, use_container_width=True, config={'displayModeBar': False})
+        # Performance graph removed (identical across projects)
 
 
 def draw_timeline():
